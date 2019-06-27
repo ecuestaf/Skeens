@@ -6,7 +6,7 @@ int sum(int a, int b) {
 }
 
 void setup() {
-  size(300,560);
+  size(800,800);
   background(#414346);
   smooth();
 }
