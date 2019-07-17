@@ -6,9 +6,9 @@ import datetime
 import subprocess
 # Print an error if requests is not installed
 try:
-	import requests
+	import tqdm
 except ImportError:
-	print "Error running script: The library requests is not installed."
+	print "Error running script: The library tqdm is not installed."
 	print "Please follow the instructions on INSTALLATION (first section of the script)."
 	exit()
 
@@ -21,7 +21,7 @@ except ImportError:
 #  1. Install pip
 #		sudo easy-install pip
 #	 2. Install requests
-#		pip install --user requests
+#		pip install --user tqdm
 # ====================================
 
 
@@ -31,8 +31,13 @@ except ImportError:
 # ====================================
 
 dataset_path = '/Volumes/NO NAME/Skeens/Datasets/Elisa/posts/your_posts_1.json'
+comments_path = '/Volumes/NO NAME/Skeens/Datasets/Elisa/comments/comments.json'
 
-APIkey = ''
+APIkey = 'A-VL26kBP7TJnpwvfOh217iJm2KqmG21Sm9xJ40sIJ1A'
+
+if APIkey == '':
+	print "ERROR! No API Key defined. We cannot connect to the IBM server."
+	exit()
 
 # ====================================
 
@@ -72,7 +77,9 @@ class colors:
 # 1.	Load the JSON file with the Facebook data
 # ===
 f = open(dataset_path, "r")
+f_c = open(comments_path, "r")
 records = json.load(f)
+comment_records = json.load(f_c)
 # =======
 
 
@@ -114,6 +121,9 @@ json_structure = {
 all_json_structures = []
 processed_years = []
 
+total_comments = 0
+total_posts = 0
+
 # For each post, extract the content and timestamp
 # then add it to the overall structure.
 #  *NOTE* Because we may not always have the "post"
@@ -122,6 +132,7 @@ processed_years = []
 #					the code throws an error because the
 #					"post" field is not present, we catch it
 #					and ignore it.
+'''
 current_year = get_year(int(records[0]["timestamp"]))   # extract the year from this timestamp
 #print "Starting with... " + str(current_year)
 for record in records:
@@ -167,9 +178,177 @@ for record in records:
 		# Store the post on our structure
 		json_structure["contentItems"].append(item)
 
-#	except:
-		# No "post" tag on JSON field, so we keep going
-#		continue
+
+# Process comments (addition)
+current_year = get_year(int(comment_records["comments"][0]["timestamp"]))
+comment_records = comment_records["comments"]
+for record in comment_records:
+	timestamp = int(record["timestamp"])
+	year = get_year(timestamp)
+	try:
+		comment = record["data"][0]["comment"]["comment"]
+	except:
+		continue
+
+	if year < current_year:
+		all_json_structures.append(json_structure)
+		json_structure = {
+			"contentItems": []
+		}
+		processed_years.append(current_year)
+		current_year = year
+
+	item = {
+		"content" : "",
+		"created" : "",
+	}
+	item["content"] = comment
+	item["created"] = timestamp / 1000
+
+	json_structure["contentItems"].append(item)
+'''
+
+comment_records = comment_records["comments"]
+
+idx_com = 0
+idx_pos = 0
+
+current_year_com = get_year(int(comment_records[0]["timestamp"]))
+current_year_pos = get_year(int(records[0]["timestamp"]))
+
+if (current_year_com > current_year_pos):
+	current_year = current_year_com
+else:
+	current_year = current_year_pos
+
+
+#for i in range(len(records) + len(comment_records)):
+while(idx_com != -1 or idx_pos != -1):
+
+	# Update current year and save structure if necessary
+	if (current_year > current_year_pos and current_year > current_year_com):
+		all_json_structures.append(json_structure)
+		json_structure = {
+			"contentItems" : []
+		}
+		processed_years.append(current_year)
+		if (current_year_com > current_year_pos):
+			current_year = current_year_com
+		else:
+			current_year = current_year_pos
+
+	# Check both if there are still comments and posts
+	if (idx_com > -1 and idx_pos > -1):
+		timestamp_com = int(comment_records[idx_com]["timestamp"])
+		timestamp_pos = int(records[idx_pos]["timestamp"])
+		if timestamp_com > timestamp_pos:
+			# get comment and add comment to structure
+			# update idx_com, if no more comments set to -1
+			# update current_year_com
+			try:
+				comment = comment_records[idx_com]["data"][0]["comment"]["comment"]
+				item = {
+					"content" : "",
+					"created" : ""
+				}
+				item["content"] = comment
+				item["created"] = timestamp_com / 1000
+				json_structure["contentItems"].append(item)
+				#print timestamp_com
+				total_comments += 1
+			except (KeyError, IndexError) as e:
+				pass
+
+			idx_com += 1
+			if idx_com >= len(comment_records):
+				idx_com = -1
+				current_year_com = -1
+			else:
+				current_year_com = get_year(int(comment_records[idx_com]["timestamp"]))
+
+		else:
+			# get post and add it to structure
+			# update idx_pos, if no more posts set to -1
+			# update current_year_pos
+			try:
+				post = records[idx_pos]["data"][0]["post"]
+				item = {
+					"content" : "",
+					"created" : ""
+				}
+				item["content"] = post
+				item["created"] = timestamp_pos / 1000
+				json_structure["contentItems"].append(item)
+				total_posts += 1
+			except (KeyError, IndexError) as e:
+				pass
+
+			idx_pos += 1
+			if idx_pos >= len(records):
+				idx_pos = -1
+				current_year_pos = -1
+			else:
+				current_year_pos = get_year(int(records[idx_pos]["timestamp"]))
+
+	elif (idx_com > -1 and idx_pos == -1):
+			# get comment and add it
+			# update idx_com
+			# update current_year_com
+			try:
+				comment = comment_records[idx_com]["data"][0]["comment"]["comment"]
+				timestamp = int(comment_records[idx_com]["timestamp"])
+				item = {
+					"content": "",
+					"created": ""
+				}
+				item["content"] = comment
+				item["created"] = timestamp / 1000
+				json_structure["contentItems"].append(item)
+				#print timestamp
+				total_comments += 1
+			except (KeyError, IndexError) as e:
+				pass
+
+			idx_com += 1
+			if idx_com >= len(comment_records):
+				idx_com = -1
+				current_year_com = -1
+			else:
+				current_year_com = get_year(int(comment_records[idx_com]["timestamp"]))
+
+	elif (idx_com == -1 and idx_pos > -1):
+			# get post and add it
+			# update idx_pos
+			# update current_year_pos
+			try:
+				post = records[idx_pos]["data"][0]["post"]
+				timestamp = int(records[idx_pos]["timestamp"])
+				item = {
+					"content": "",
+					"created": ""
+				}
+				item["content"] = post
+				item["created"] = timestamp / 1000
+				json_structure["contentItems"].append(item)
+				total_posts += 1
+			except (KeyError, IndexError) as e:
+				pass
+
+			idx_pos += 1
+			if idx_pos >= len(records):
+				idx_pos = -1
+				current_year_pos = -1
+			else:
+				current_year_pos = get_year(int(records[idx_pos]["timestamp"]))
+
+	else:
+			# Done
+			break	
+
+# Add the last structure
+if current_year_com != -1 or current_year_pos != -1:
+	all_json_structures.append(json_structure)
+	processed_years.append(current_year)
 # =======
 
 
@@ -183,8 +362,10 @@ for s in all_json_structures:
 	total += len(s["contentItems"])
 # Print results
 print colors.blue
-print "Processed a total of " + str(total) + " posts."
-print "Posts span " + str(len(processed_years)) + " years."
+print "Processed a total of " + str(total) + " posts/comments."
+print "  Comments: " + str(total_comments) + "."
+print "  Posts: " + str(total_posts) + "."
+print "Posts/Comments span " + str(len(set(processed_years))) + " years."
 print colors.no_color
 # ---
 
@@ -206,7 +387,7 @@ for index in range(len(processed_years)):
 	# Get the year
 	year = str(processed_years[index])
 	# Create a file name (we use the year as part of the name)
-	new_file_name_for_year = "posts_" + year + ".json"
+	new_file_name_for_year = "data_" + year + ".json"
 	# Add file name to our list
 	file_names.append(new_file_name_for_year)
 	# Open/Create a file with this name
