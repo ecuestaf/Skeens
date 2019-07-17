@@ -33,7 +33,7 @@ except ImportError:
 dataset_path = '/Volumes/NO NAME/Skeens/Datasets/Elisa/posts/your_posts_1.json'
 comments_path = '/Volumes/NO NAME/Skeens/Datasets/Elisa/comments/comments.json'
 
-APIkey = 'A-VL26kBP7TJnpwvfOh217iJm2KqmG21Sm9xJ40sIJ1A'
+APIkey = ''
 
 if APIkey == '':
 	print "ERROR! No API Key defined. We cannot connect to the IBM server."
@@ -132,81 +132,6 @@ total_posts = 0
 #					the code throws an error because the
 #					"post" field is not present, we catch it
 #					and ignore it.
-'''
-current_year = get_year(int(records[0]["timestamp"]))   # extract the year from this timestamp
-#print "Starting with... " + str(current_year)
-for record in records:
-	if True:
-		# Get the timestamp
-		timestamp = int(record["timestamp"])		# convert to UNIX before passing to JSON file
-		year = get_year(timestamp)
-
-		# Get post content
-		try:
-			# If there is a post tag, get the post
-			data_field = record["data"][0]
-			post_content = data_field["post"]
-		except:
-			# If there is no post tag, set the variable to ""
-			# print "No post content"
-			continue
-
-		# Check to make sure that this post is still
-		# within the current year, otherwise save the
-		# posts already stored and move on to the next
-		# year
-		if year < current_year:
-			# Add this year's structure to our list
-			all_json_structures.append(json_structure)
-			# Remove the posts since we are using this for a new year
-			json_structure = {
-				"contentItems": []
-			}
-			# Add processed year to our list
-			processed_years.append(current_year)
-			# Set the year to the new one
-			current_year = year
-
-		# Build the new record
-		item = {
-			"content": "",
-			"created": ""
-		}
-		item["content"] = post_content
-		item["created"] = timestamp / 1000		# UNIX Timestamp is seconds only
-
-		# Store the post on our structure
-		json_structure["contentItems"].append(item)
-
-
-# Process comments (addition)
-current_year = get_year(int(comment_records["comments"][0]["timestamp"]))
-comment_records = comment_records["comments"]
-for record in comment_records:
-	timestamp = int(record["timestamp"])
-	year = get_year(timestamp)
-	try:
-		comment = record["data"][0]["comment"]["comment"]
-	except:
-		continue
-
-	if year < current_year:
-		all_json_structures.append(json_structure)
-		json_structure = {
-			"contentItems": []
-		}
-		processed_years.append(current_year)
-		current_year = year
-
-	item = {
-		"content" : "",
-		"created" : "",
-	}
-	item["content"] = comment
-	item["created"] = timestamp / 1000
-
-	json_structure["contentItems"].append(item)
-'''
 
 comment_records = comment_records["comments"]
 
