@@ -1,5 +1,6 @@
 import os
 import json
+import collections
 from tqdm import tqdm
 
 
@@ -16,10 +17,11 @@ from tqdm import tqdm
 
 dataset_path = "/Volumes/NO NAME/Skeens/Datasets/Elisa/"
 
-results_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_autoedicion.csv"
-stats_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_stats_autoedition.csv"
+results_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action.csv"
+results_image_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_text_image.csv"
+stats_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_stats.csv"
 
-files_to_consider = "Autoedicion"	# could be: "Autoedicion", "Interaccion" or "Facebook_Records"
+files_to_consider = "ALL"	# could be: "Autoedicion", "Interaccion" or "Facebook_Records"
 
 # ALL
 files_to_process = [
@@ -168,6 +170,19 @@ def process_file_other(records, action, rf, timestamp_type):
 	return counter
 
 
+def process_file_message(records, rf):
+	counter = 0
+	for record in records:
+		timestamp = str(int(record["timestamp_ms"])/1000)
+		if "Elisa Cuesta" in record["sender_name"]:
+			action = "message_sent"
+		else:
+			action = "message_received"
+		counter += 1
+		write_to_file(rf, timestamp, action)
+	return counter
+
+
 def process_file_session(records, action, rf, timestamp_type):
 	counter = 0
 	for record in records:
@@ -185,7 +200,7 @@ def process_category(records, action, rf, filename):
 
 def process_category_other(records, action, rf, filename, mode):
 	if mode == "ms":
-		counter = process_file_other(records, action, rf, "timestamp_ms")
+		counter = process_file_message(records, rf)
 	elif mode == "added":
 		counter = process_file_other(records, action, rf, "added_timestamp")
 	elif mode == "created":
@@ -201,6 +216,7 @@ def process_category_other(records, action, rf, filename, mode):
 		exit()
 	print_info(filename, action, counter)
 	return counter
+
 
 def find_friend_paths(path):
 	friends_folder_names = []
@@ -248,8 +264,11 @@ for filename in files:
 
 	filename = dataset_path + filename
 	if ".json" in filename:
-		f = open(filename, "r")
-		records = json.load(f)
+		try:
+			f = open(filename, "r")
+			records = json.load(f)
+		except IOError:
+			continue
 
 	# Posts	
 	if "/your_posts_1.json" in filename:
@@ -372,6 +391,9 @@ for filename in files:
 			records = records["messages"]
 			total_counter += process_category_other(records, action, rf, message_file, "ms")
 			f.close()
+		action = "message_sent"
+		total_detected_actions.append(action)
+		action = "message_received"
 		total_detected_actions.append(action)
 
 
@@ -670,7 +692,9 @@ if process_albums:
 			records = data["photos"]
 			for record in records:
 				total_counter += process_category(record["comments"], action, rf, filename)	
+			
 			total_detected_actions.append(action)
+			print "photo_comment" in total_detected_actions
 		except KeyError:
 			pass
 
@@ -700,15 +724,17 @@ action_count = {}
 for action in total_detected_actions:
 	action_count[action.encode('ascii','ignore')] = 0
 
+action_timestamp = {}
 for line in f.readlines():
 	cat = line.split()[1]
+	action_timestamp[line.split(",")[0]] = cat
 	try:
 		action_count[cat] += 1
 	except KeyError:
 		print "Error..."
 		print cat
 		print line
-		exit()
+		#exit()
 
 rf.write("Number of actions: " + str(len(action_count)) + "\n")
 rf.write("Total number of timestamps: " + str(total_counter) + "\n")
@@ -716,9 +742,6 @@ rf.write("\n")
 rf.write("List of action/count:\n")
 for action in action_count:
 	rf.write(action + ": " + str(action_count[action]) + "\n")
-
-f.close()
-rf.close()
 
 
 
@@ -736,3 +759,39 @@ print "List of actions detected:"
 print "\n".join(total_detected_actions)
 print colors.no_color
 # ===
+
+
+# =======
+# Graphic
+# =======
+dict_file = open("dictionary.csv", "r")
+r = open(results_image_path, "w")
+
+dictionary = {}
+for line in dict_file.readlines():
+	cat = line.split(",")[0]
+	char = line.split(",")[1].rstrip()
+	dictionary[cat] = char
+
+action_timestamp_sorted = collections.OrderedDict(sorted(action_timestamp.items()))
+line_ctr = 0
+line_max = 370
+lines = 0
+for action in action_timestamp.values():
+	r.write(dictionary[action])
+	line_ctr += 1
+	if line_ctr == line_max:
+		r.write("\n")
+		line_ctr = 0
+		lines += 1
+	else:
+		r.write(" ")
+
+print("Total lines: " + str(lines))
+
+r.close()
+dict_file.close()
+f.close()
+rf.close()
+
+
