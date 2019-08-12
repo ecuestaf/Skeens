@@ -1,6 +1,7 @@
 import os
 import json
 import collections
+import datetime
 from tqdm import tqdm
 
 
@@ -17,11 +18,11 @@ from tqdm import tqdm
 
 dataset_path = "/Volumes/NO NAME/Skeens/Datasets/Elisa/"
 
-results_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action.csv"
-results_image_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_text_image.csv"
-stats_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_stats.csv"
+results_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_autoedicion.csv"
+results_image_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_text_image_autoedicion.txt"
+stats_path = "/Volumes/NO NAME/Skeens/Statistics/Timestamp_Action_Stats/timestamp_action_stats_autoedicion.csv"
 
-files_to_consider = "ALL"	# could be: "Autoedicion", "Interaccion" or "Facebook_Records"
+files_to_consider = "Autoedicion"	# could be: "Autoedicion", "Interaccion" or "Facebook_Records"
 
 # ALL
 files_to_process = [
@@ -225,6 +226,30 @@ def find_friend_paths(path):
 		break
 	return friends_folder_names
 
+
+def get_year(timestamp):
+	year = datetime.datetime.fromtimestamp(timestamp).strftime('%Y')
+	return int(year)
+
+def get_month(timestamp):
+	month = datetime.datetime.fromtimestamp(timestamp).strftime('%m')
+	return int(month)
+
+def get_day(timestamp):
+	day = datetime.datetime.fromtimestamp(timestamp).strftime('%d')
+	return int(day)
+
+def get_weekday(timestamp):
+	weekday = int(datetime.datetime.fromtimestamp(timestamp).strftime('%w'))
+	return int(weekday)
+
+def get_hour(timestamp):
+	hour = datetime.datetime.fromtimestamp(timestamp).strftime('%H')
+	return int(hour)
+
+def get_week_number(timestamp):
+	num = datetime.datetime.fromtimestamp(timestamp).strftime('%W')
+	return int(num)
 # ===============================
 
 
@@ -774,20 +799,123 @@ for line in dict_file.readlines():
 	dictionary[cat] = char
 
 action_timestamp_sorted = sorted(action_timestamp.items())
-line_ctr = 0
-line_max = 370
-lines = 0
-for action in action_timestamp_sorted:
-	r.write(dictionary[action[1]])
-	line_ctr += 1
-	if line_ctr == line_max:
-		r.write("\n")
-		line_ctr = 0
-		lines += 1
-	else:
-		r.write(" ")
 
-print("Total lines: " + str(lines))
+first_timestamp = action_timestamp_sorted[0][0]
+first_weekday = get_weekday(first_timestamp)
+first_monthday = get_day(first_timestamp)
+
+# Separate by weeks
+all_rows = []
+current_week_row = []
+day_range = []
+new_week = False
+for action in action_timestamp_sorted:
+	timestamp = int(action[0])
+	weekday = get_weekday(timestamp)
+	monthday = get_day(timestamp)
+	if (new_week):
+		first_monthday = monthday
+		first_weekday = weekday
+		new_week = False
+		max_day = first_monthday
+		for idx in range(first_weekday):
+			if (max_day + idx + 1) > 31:
+				day_range.append(max_day + idx + 1 - 31)
+			else:
+				day_range.append(max_day + idx + 1)
+	if monthday in day_range:
+		current_week_row.append((timestamp, action[1]))
+	else:
+		all_rows.append(current_week_row)
+		current_week_row = []
+		day_range = []
+		new_week = True
+
+all_rows = []
+current_week_row = []
+curr_week = get_week_number(first_timestamp)
+curr_year = get_year(first_timestamp)
+for action in action_timestamp_sorted:
+	timestamp = int(action[0])
+	week_num = get_week_number(timestamp)
+	year = get_year(timestamp)
+	if week_num != curr_week:
+		all_rows.append(current_week_row)
+		current_week_row = []
+		curr_week = week_num
+	current_week_row.append((timestamp, action[1]))
+
+#print(all_rows)
+
+print("===")
+print("INFO")
+print("Number of rows: " + str(len(all_rows)))
+
+# week = [{timestamp: action}]
+week_ctr = 1
+for week in all_rows:
+	middle = 0
+	middle_weekday = 0
+	middle_time = 0
+	# Find the index of the day in the middle of the week
+	for idx in range(len(week)):
+		weekday = int(get_weekday(float(week[idx][0])))
+		time = int(get_hour(week[idx][0]))
+		if weekday < 4:
+			middle = idx
+			middle_weekday = weekday
+			middle_time = time
+		elif weekday == 4:
+				middle = idx
+				break
+		elif weekday == 5:
+			if middle_weekday == 3:
+				if middle_time-24 < time:
+					break
+				else:
+					middle = idx
+					break
+			else:
+				middle = idx
+				break
+		elif weekday == 6:
+			if middle_weekday == 3:
+				break
+			elif middle_weekday == 2:
+				if middle_time-24 < time:
+					break
+				else:
+					middle = idx
+					break
+			else:
+				break
+		else:
+			if middle_weekday == 3:
+				break
+			elif middle_weekday == 2:
+				break
+			else:
+				if middle_time-24 < time:
+					break
+				else:
+					middle = idx
+	# Write the week number first
+	r.write(str(week_ctr) + ",")
+	# Find the date of the start of the week
+	timestamp = week[0][0]
+	day = str(get_day(timestamp))
+	#weekday = str(get_weekday(timestamp))
+	month = str(get_month(timestamp))
+	year = str(get_year(timestamp))
+	r.write(day + "/" + month + "/" + year + ",")
+	# Write the info to the file
+	for idx in range(len(week)):
+		if idx == middle:
+			r.write(",*" + dictionary[week[idx][1]] + "*,")
+		else:
+			r.write(dictionary[week[idx][1]] + " ")
+	r.write(", -- " + str(len(week))  + " \n")
+
 
 r.close()
 dict_file.close()

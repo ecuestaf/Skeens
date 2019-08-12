@@ -727,7 +727,7 @@ for action in total_detected_actions:
 action_timestamp = {}
 for line in f.readlines():
 	cat = line.split()[1]
-	action_timestamp[int(line.split(",")[0])] = cat
+	action_timestamp[line.split(",")[0]] = cat
 	try:
 		action_count[cat] += 1
 	except KeyError:
@@ -773,12 +773,12 @@ for line in dict_file.readlines():
 	char = line.split(",")[1].rstrip()
 	dictionary[cat] = char
 
-action_timestamp_sorted = sorted(action_timestamp.items())
+action_timestamp_sorted = collections.OrderedDict(sorted(action_timestamp.items()))
 line_ctr = 0
 line_max = 370
 lines = 0
-for action in action_timestamp_sorted:
-	r.write(dictionary[action[1]])
+for action in action_timestamp.values():
+	r.write(dictionary[action])
 	line_ctr += 1
 	if line_ctr == line_max:
 		r.write("\n")
