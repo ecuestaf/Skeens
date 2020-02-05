@@ -12,36 +12,42 @@ import numpy as np
 import scipy
 import scipy.misc
 import scipy.cluster# Puramente estetico
-
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+import time
 
 
 
 
+#########  MACROS TOTALMENTE CONFIGURABLES ###########
 
-# MACROS TOTALMENTE TOCABLES
+
+# OUTPUT FILE NAME 
+OUTPUT = "result.jpg"
+
+# Lado del cuadrado básico
+SQUARE_SIDE = 10
+
+# Indica si se eliminan los ficheros de cuadrados individuales o no
+REMOVE_SQUARES = False
+# Indica el nombre de la carpeta donde se van a guardar los cuadrados en caso de que no se eliminen
+SQUARES_FOLDER = 'squares'
+
+
+# Si AUREA == True, el valor de ROW_LEN no importa: Se ignora. 
+# Si AUREA == False, el valor de ROW_LEN es el que rige el tamaño de la imagen (se ponen tantas imagenes como se indica por fila y se crean las filas necesarias para agotar las imagenes, se rellena con blanco)
+AUREA = True
+ROW_LEN = 10
+
 
 # La verdad que no me he parado a entender las funciones por debajo (ni falta que hace)
 # Seguramente a mas clusteres mas precision a costa de mas coste computacional, no queremos tampoco demasiada precision I guess.
 NUM_CLUSTERS = 3
 
-# LADO DEL CUADRADO
-SQUARE_SIDE = 10
-
-
-
-
 # MEJOR NO TOCAR
+DATA_PATH = "data"
 
-IMAGES_PATH = "/images"
+#########################################################
+
+
 
 # Crea una imagen auxiliar con el color que se le proporciona.
 # La llama como su segundo argumento.
@@ -66,7 +72,8 @@ def createAllSquares(listOfColors):
 
 	for col in listOfColors:
 		name = str(i) + basestr
-		print(name)
+		if REMOVE_SQUARES == False:
+			name = os.path.join(os.getcwd(), SQUARES_FOLDER, name)
 		createSingleSquareImage(col, name)
 		nameList.append(name)		
 		i += 1 
@@ -80,62 +87,56 @@ def deleteAuxImages(nameList):
 		
 		os.remove(name)
 
-def createWholeImage(listOfColors):
+def createWholeImage(listOfColors, outputName):
 
 
 	# creacion las subimagenes (cuadrados con sus colores pertinentes)
 
 	imageList = createAllSquares(listOfColors)
 
-	# podemos asumir que todas van a tener el mismo tamaño de ancho y largo, eso simplifica los calculos siguientes
-	print(imageList)
-	images = list(map(Image.open, imageList))
+	for idx, descr in enumerate(imageList):
+		
+		im = Image.open(descr)
+		
+		if idx == 0:
+			# podemos asumir que todas van a tener el mismo tamano de ancho y largo, eso simplifica los calculos siguientes
+			#images = list(map(Image.open, imageList))
+			
+			width, height = im.size
 
-	width, height = images[0].size
+			num_squares = len(listOfColors)
+			
+			if AUREA == True:
+				IMAGESPERFILE = math.ceil(math.sqrt((16/27)*num_squares))
+			else: 
+				IMAGESPERFILE = ROW_LEN
+			total_width = width*IMAGESPERFILE
+			total_height = math.ceil(len(imageList)/IMAGESPERFILE)*height
+			
+			new_im = Image.new('RGB', (total_width, total_height))
 
-	num_squares = len(listOfColors)
-	IMAGESPERFILE = math.ceil(math.sqrt((16/27)*num_squares))
-
-	total_width = width*IMAGESPERFILE
-	total_height = math.ceil(len(imageList)/IMAGESPERFILE)*height
-	
-	print(total_width)
-	print(total_height)
-	
-	new_im = Image.new('RGB', (total_width, total_height))
-
-	count = 0
-	x_offset = 0
-	y_offset = 0
-	for im in images:
-	  new_im.paste(im, (x_offset,y_offset))
-	  x_offset += im.size[0]
-	  count += 1  
-	  if count % IMAGESPERFILE == 0 and count != 0:
-	    
-	    y_offset += im.size[1]
-	    x_offset = 0
+			count = 0
+			x_offset = 0
+			y_offset = 0
+		
+			
+		new_im.paste(im, (x_offset,y_offset))
+		x_offset += im.size[0]
+		count += 1  
+		if count % IMAGESPERFILE == 0 and count != 0:
+		
+			y_offset += im.size[1]
+			x_offset = 0
+		
+		
+		im.close()
 	  
 
-	new_im.save('resss.jpg')
+	new_im.save(outputName)
 
 	
-	deleteAuxImages(imageList)	
-
-
-def getListOfDominantColors(listOfImageNames):
-	'''
-	Argumentos:
-		listOfImageNames = Lista con todos los nombre de las imagenes
-	Retorno:
-		Una lista de tuplas donde cada elemento es de la forma (peak, colour)
-	'''
-	L = []
-	for im in listOfImageNames:
-		L.append(getDominantColor(im))
-
-	return L
-		
+	if REMOVE_SQUARES == True:
+		deleteAuxImages(imageList)	
 
 
 def getDominantColor(imName):
@@ -153,6 +154,7 @@ def getDominantColor(imName):
 	im = Image.open(imName)
 	im = im.resize((150, 150))      # optional, to reduce time
 	ar = np.asarray(im)
+	im.close()
 	shape = ar.shape
 	ar = ar.reshape(scipy.product(shape[:2]), shape[2]).astype(float)
 
@@ -173,10 +175,35 @@ def getDominantColor(imName):
 	#Note: when I expand the number of clusters to find from 5 to 10 or 15, it frequently gave results that were greenish or bluish. Given the input image, those are 		reasonable results too... I can't tell which colour is really dominant in that image either, so I don't fault the algorithm!
 
 
+
+def getListOfDominantColors(listOfImageNames):
+	'''
+	Argumentos:
+		listOfImageNames = Lista con todos los nombre de las imagenes
+	Retorno:
+		Una lista de tuplas donde cada elemento es de la forma (peak, colour)
+	'''
+	L = []
+	for im in listOfImageNames:
+		L.append(getDominantColor(im))
+
+	return L
+		
+
+
+
 def main():
+	
+	if REMOVE_SQUARES == False:
+		if not os.path.exists(SQUARES_FOLDER):
+			os.makedirs(SQUARES_FOLDER)
+		else:
+			shutil.rmtree(SQUARES_FOLDER)
+			os.makedirs(SQUARES_FOLDER)
+			
+	
 	listOfNames = []
-	dataPath = os.getcwd() + IMAGES_PATH
-	print(bcolors.WARNING + "ANALIZANDO FICHEROS:" + bcolors.ENDC)
+	dataPath = os.getcwd() + DATA_PATH
 
 	for folderName in os.listdir(dataPath):
 		if folderName.startswith("."):
@@ -186,13 +213,14 @@ def main():
 		for fileName in os.listdir(provisionalPath):
 			if fileName.startswith("."):
 				continue
-			print(bcolors.OKBLUE + fileName + bcolors.ENDC)
+			#print(bcolors.OKBLUE + fileName + bcolors.ENDC)
 			filePath = provisionalPath +  "/" + fileName 
 			listOfNames.append(filePath)
+    
 
 	colorsList = getListOfDominantColors(listOfNames)
 
-	createWholeImage(colorsList)
+	createWholeImage(colorsList, OUTPUT)
 
 
 
